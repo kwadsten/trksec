@@ -1,0 +1,122 @@
+; ---------------------------------------------
+; trksec.z80
+;
+; Replace standard TRS-DOS 1.3 clock interrupt with a new routine that shows 
+;    a track/sector display at the top of the screen.
+;
+; NOTES: 
+; 	For Model III TRSDOS 1.3 only
+; 	Retains clock/blinking cursor functionality
+; 	TRSDOS clears memory (wiping out this routine) when running certain DOS
+; 	    routines.  ie. LIST
+;	Update ORG depending on your RAM size
+;
+; Kyle Wadsten
+; www.plaidvest.com
+; www.github.com/kwadsten
+; support@plaidvest.com
+; ---------------------------------------------
+; zmac --od . --oo lst,cmd trksec.z80
+; ---------------------------------------------
+
+CLKINTPTR		equ	$4047		; Location of clock interrupt pointer
+						; M3 value = $3529
+DISKTRACKREG		equ	$37EF		; Current disk track register
+DISKSECTORREG		equ	$37EE		; Current disk sector register
+
+FDC_TRACK_PORT		equ	$F1		; Track port
+FDC_SECTOR_PORT		equ	$F2		; Sector port
+
+SCREEN   	    	equ	$3C00		; Start of screen memory
+TRK_OUT			equ	SCREEN+46 	; Track number output location
+SEC_OUT			equ	SCREEN+50	; Sector number output location
+
+	.org     $F000				; Put routine up high (change depending on your RAM)
+
+; --------------------------------------------------------
+main
+; --------------------------------------------------------
+	di				; disable interrupts
+	ld	hl,(CLKINTPTR)		; save old clock interrupt ptr
+	ld	(wSaveIntPtr),hl
+	ld	hl,newInterruptFunc	; change clock interrupt ptr to our routine
+	ld	(CLKINTPTR),hl
+	ei				; enable interrupts
+	ret
+
+; --------------------------------------------------------
+newInterruptFunc
+; Notes:
+;	Called every 1/30th of a second (30 times per second)
+;	Interrupts are disabled at this point
+; 	Stack contains 35F1 (RETURN ADDR), IY, IX, HL, DE, BC, AF
+; 	A 'ret' will exit the interrupt without updating clock/cursor.  It will:
+;		jump to 35F1
+;		enable interrupts (EI)
+;		restore regs
+;		exit interrupt
+;	Jumping to wSaveIntPtr will acknowledge the interrupt and perform normal clock/cursor actions
+;	If not performing the clock/cursor logic you will need to acknowledge interrupt
+; --------------------------------------------------------
+	
+	ld	a,' '			; display as __(Txx:Sxx)
+	ld	(TRK_OUT-4),a
+	ld	(TRK_OUT-3),a
+	ld	a,'('			
+	ld	(TRK_OUT-2),a
+	ld	a,'T'
+	ld	(TRK_OUT-1),a
+	in	a,(FDC_TRACK_PORT)	; display track
+	call	HexToAscii
+	ld	(TRK_OUT),hl
+
+	ld	a,':'			; separator
+	ld	(SEC_OUT-2),a
+
+	ld	a,'S'
+	ld	(SEC_OUT-1),a
+	ld	a,')'
+	ld	(SEC_OUT+2),a
+	in	a,(FDC_SECTOR_PORT)	; display sector
+	call	HexToAscii
+	ld	(SEC_OUT),hl
+
+	ld	hl,(wSaveIntPtr)	; jp to old clock interrupt 
+	jp	(hl)
+
+; --------------------------------------------------------
+HexToAscii
+; Input:   a = 8-bit value to convert.  0-FF
+; Returns: hl = Hex value in ASCII.  "00"-"FF"
+;
+; Example: a = $F0, hl = $3046 ("0F") (reversed so you can ld (SCREEN),hl)
+; --------------------------------------------------------
+	push 	af
+	call	HexToAsciiDigit
+	ld	h,a
+	pop	af
+	srl	a
+	srl	a
+	srl	a
+	srl	a
+	call	HexToAsciiDigit
+	ld	l,a
+	ret
+
+; --------------------------------------------------------
+HexToAsciiDigit
+; Input:  a = hex value
+; Return: a = ascii value
+; --------------------------------------------------------
+	and	$0f
+	add	a,$30
+	cp	a,$3a
+	ret	m
+	add	a,7
+	ret
+
+wSaveIntPtr		defw	0	
+
+; --------------------------------------------------------
+	end	main
+; --------------------------------------------------------
