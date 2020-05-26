@@ -17,8 +17,7 @@ This application (**trksec**) shows a real-time display of the current track and
 
 Note:  Some DOS functions actually clear all of upper memory after they run (ie. the DOS LIST command).   With some research and patience these routines could be found and patched to prevent clearing of upper memory.
 
-[MOD III ROM COMMENTED (pdf)](https://archive.org/details/
-Model_III_ROM_Commented_1981_SSM)
+[MOD III ROM COMMENTED (pdf)](https://archive.org/details/Model_III_ROM_Commented_1981_SSM)
 
 [zmac assembler](http://48k.ca/zmac.html)
 
